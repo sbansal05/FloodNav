@@ -117,6 +117,13 @@ test("rejects invalid or duplicate camp IDs", () => {
   );
 });
 
+test("rejects a camp ID that is not a graph node", () => {
+  assert.throws(
+    () => findNearestReachableCamp(areaGraph(), "start", [nearCamp, { id: "missing-camp", name: "Ghost" }]),
+    /Camp ID does not exist in the graph: missing-camp/,
+  );
+});
+
 test("does not mutate the graph, camps, or blocked-road list", () => {
   const graph = areaGraph();
   const camps = [farCamp, nearCamp, cutOffCamp];

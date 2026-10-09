@@ -13,6 +13,7 @@ import { findShortestPath } from "./dijkstra.js";
  */
 export function findNearestReachableCamp(graph, startId, camps, blockedRoadIds = []) {
   validateCamps(camps);
+  assertCampIdsExist(graph, camps);
 
   let nearest = null;
 
@@ -57,6 +58,26 @@ function validateCamps(camps) {
     seen.add(camp.id);
     if (camp.name !== undefined && typeof camp.name !== "string") {
       throw new Error(`Camp ${String(camp.id)} has an invalid name`);
+    }
+  }
+}
+
+function assertCampIdsExist(graph, camps) {
+  if (camps.length === 0) return;
+  if (graph === null || typeof graph !== "object" || Array.isArray(graph) || !Array.isArray(graph.nodes)) {
+    return;
+  }
+
+  const nodeIds = new Set();
+  for (const node of graph.nodes) {
+    if (node === null || typeof node !== "object" || Array.isArray(node)) return;
+    if (node.id === undefined || node.id === null || node.id === "") return;
+    nodeIds.add(node.id);
+  }
+
+  for (const camp of camps) {
+    if (!nodeIds.has(camp.id)) {
+      throw new Error(`Camp ID does not exist in the graph: ${String(camp.id)}`);
     }
   }
 }
