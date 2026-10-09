@@ -1,4 +1,4 @@
-// IndexedDB storage for road reports that could not be sent yet (offline queue).
+// IndexedDB storage for road reports that are not confirmed by the server yet (offline queue).
 import { openDB } from 'idb'
 
 const DB_NAME = 'flood-relief'
@@ -18,13 +18,15 @@ function getDb() {
 
 export async function addPending(report) {
   const db = await getDb()
-  await db.put(STORE, { ...report, status: 'pending', createdAt: Date.now() })
+  // queuedAt is local bookkeeping only; createdAt (ISO) is what the server receives.
+  await db.put(STORE, { ...report, queuedAt: Date.now() })
 }
 
 export async function getPending() {
   const db = await getDb()
   const all = await db.getAll(STORE)
-  return all.sort((a, b) => a.createdAt - b.createdAt)
+  const order = (r) => r.queuedAt ?? (typeof r.createdAt === 'number' ? r.createdAt : 0)
+  return all.sort((a, b) => order(a) - order(b))
 }
 
 export async function updatePending(item) {

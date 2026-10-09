@@ -198,8 +198,7 @@ export default function MapView({
           key={c.id}
           position={[c.lat, c.lng]}
           icon={campIcon(`Camp ${i + 1}`, route.camp?.id === c.id)}
-          zIndexOffset={500}
-        >
+          zIndexOffset={route.camp?.id === c.id ? 900 : 500}        >
           <Tooltip direction="top" offset={[0, -12]}>
             {c.name}
             {c.capacity ? ` · capacity ${c.capacity}` : ''}

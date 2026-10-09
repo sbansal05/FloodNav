@@ -1,6 +1,6 @@
 export default function StatusBar({ reports }) {
   const { online, pending, syncing, apiConfigured, syncNow } = reports
-  const waiting = pending.filter((p) => p.status !== 'failed').length
+  const waiting = pending.length
 
   return (
     <div className="status-bar">

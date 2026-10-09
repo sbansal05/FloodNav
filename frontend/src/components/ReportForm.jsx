@@ -6,6 +6,7 @@ import { formatDistance } from '../lib/routing.js'
 const QUEUED_TEXT = {
   offline: 'You are offline. The report is saved on this device and will be sent automatically when you reconnect.',
   network: 'Could not reach the server. The report is saved on this device and will be retried.',
+  server: 'The server did not confirm the report. It is saved on this device and will be retried.',
   'no-backend': 'The report service is not connected yet. The report is saved on this device.',
 }
 
@@ -39,11 +40,8 @@ export default function ReportForm({
       const result = await reports.submit({ roadId: road.id, type, description })
       if (result.status === 'sent') {
         setFeedback({ kind: 'ok', text: 'Report sent and stored. Thank you.' })
-      } else if (result.status === 'queued') {
-        setFeedback({ kind: 'queued', text: QUEUED_TEXT[result.reason] })
       } else {
-        setFeedback({ kind: 'error', text: result.message })
-        return
+        setFeedback({ kind: 'queued', text: QUEUED_TEXT[result.reason] })
       }
       setDescription('')
     } catch {
@@ -121,19 +119,14 @@ export default function ReportForm({
           <h3>Pending reports ({reports.pending.length})</h3>
           <ul>
             {reports.pending.map((p) => (
-              <li key={p.reportId} className={p.status === 'failed' ? 'failed' : ''}>
+              <li key={p.reportId} className={p.lastError ? 'failed' : ''}>
                 <span>
                   Road {p.roadId} · {p.type}
-                  <span className="muted small">
-                    {' '}
-                    — {p.status === 'failed' ? p.error : 'waiting to sync'}
-                  </span>
+                  <span className="muted small"> — {p.lastError ?? 'waiting to sync'}</span>
                 </span>
-                {p.status === 'failed' && (
-                  <button type="button" className="link" onClick={() => reports.discard(p.reportId)}>
-                    Discard
-                  </button>
-                )}
+                <button type="button" className="link" onClick={() => reports.discard(p.reportId)}>
+                  Discard
+                </button>
               </li>
             ))}
           </ul>

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addPending, getPending, removePending, updatePending } from '../lib/db.js'
-import { apiConfigured, postReport, toPayload } from '../lib/api.js'
+import { apiConfigured, postReport } from '../lib/api.js'
 
+// Must match Person 4's API: flooded / blocked / safe
 export const REPORT_TYPES = [
   { value: 'flooded', label: 'Flooded' },
   { value: 'blocked', label: 'Blocked / impassable' },
-  { value: 'damaged', label: 'Damaged' },
+  { value: 'safe', label: 'Safe / passable' },
 ]
 export const MAX_DESCRIPTION = 200
+const RETRY_EVERY_MS = 30_000
 
 function newReportId() {
   const uid = globalThis.crypto?.randomUUID
@@ -19,7 +21,8 @@ function newReportId() {
 /**
  * Report submission with an offline queue.
  *  - online + backend configured -> POST immediately
- *  - otherwise (or on network/5xx failure) -> saved in IndexedDB, synced later
+ *  - not confirmed (offline, network error, any reply other than 201 / 200+duplicate)
+ *    -> saved in IndexedDB and retried: on reconnect, every 30 s, or via "Sync now"
  */
 export function useReports() {
   const [online, setOnline] = useState(() => navigator.onLine)
@@ -47,18 +50,14 @@ export function useReports() {
     try {
       const items = await getPending()
       for (const item of items) {
-        if (item.status === 'failed') continue
         try {
           await postReport(item)
-          await removePending(item.reportId)
+          await removePending(item.reportId) // confirmed saved: drop from the queue
           markSent(item.roadId)
         } catch (err) {
-          if (err.status >= 400 && err.status < 500) {
-            // Server rejected this report: keep it visible, don't retry forever.
-            await updatePending({ ...item, status: 'failed', error: `Rejected (HTTP ${err.status})` })
-          } else {
-            break // network / server problem: stop and retry later
-          }
+          if (err.status === undefined) break // can't reach the server: stop, retry later
+          // Server replied but did not confirm: keep it and retry later.
+          await updatePending({ ...item, lastError: `Not saved yet (HTTP ${err.status})` })
         }
       }
     } finally {
@@ -77,16 +76,25 @@ export function useReports() {
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     refresh().then(syncNow)
+    const timer = setInterval(syncNow, RETRY_EVERY_MS)
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
+      clearInterval(timer)
     }
   }, [refresh, syncNow])
 
-  /** @returns {{status: 'sent'|'queued'|'rejected', reason?: string, message?: string}} */
+  /** @returns {{status: 'sent'|'queued', reason?: 'no-backend'|'offline'|'network'|'server'}} */
   const submit = useCallback(
     async ({ roadId, type, description }) => {
-      const report = { reportId: newReportId(), roadId, type, description: description.trim() }
+      const report = {
+        reportId: newReportId(),
+        roadId,
+        type,
+        description: description.trim(),
+        createdAt: new Date().toISOString(),
+      }
+      let reason = !apiConfigured ? 'no-backend' : navigator.onLine ? 'network' : 'offline'
 
       if (navigator.onLine && apiConfigured) {
         try {
@@ -94,19 +102,14 @@ export function useReports() {
           markSent(roadId)
           return { status: 'sent' }
         } catch (err) {
-          if (err.status >= 400 && err.status < 500) {
-            return { status: 'rejected', message: `The server rejected this report (HTTP ${err.status}).` }
-          }
-          // network error or 5xx: fall through and queue it
+          reason = err.status === undefined ? 'network' : 'server'
+          if (err.status !== undefined) report.lastError = `Not saved yet (HTTP ${err.status})`
         }
       }
 
-      await addPending(toPayload(report))
+      await addPending(report)
       await refresh()
-      return {
-        status: 'queued',
-        reason: !apiConfigured ? 'no-backend' : navigator.onLine ? 'network' : 'offline',
-      }
+      return { status: 'queued', reason }
     },
     [refresh, markSent],
   )
