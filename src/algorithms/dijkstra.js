@@ -4,13 +4,14 @@
  * Graph shape:
  * {
  *   nodes: [{ id, lat, lng }],
- *   edges: [{ id, from, to, distance }]
+ *   edges: [{ id, from, to, distance, oneway? }]
  * }
- * Every road can be traveled in either direction.
+ * A road is one-way only when `oneway === true`. Every other road can be
+ * traveled from `from` to `to` and from `to` to `from`.
  */
 
 /**
- * @param {{ nodes: Array<{ id: string | number, lat: number, lng: number }>, edges: Array<{ id: string | number, from: string | number, to: string | number, distance: number }> }} graph
+ * @param {{ nodes: Array<{ id: string | number, lat: number, lng: number }>, edges: Array<{ id: string | number, from: string | number, to: string | number, distance: number, oneway?: boolean }> }} graph
  * @param {string | number} startId
  * @param {string | number} endId
  * @param {Array<string | number>} blockedRoadIds
@@ -140,19 +141,29 @@ function validateBlockedRoads(blockedRoadIds) {
 function buildAdjacency(edges, blocked) {
   const neighbors = new Map();
   for (const edge of edges) {
+    // A blocked road is removed completely, including its reverse direction.
     if (blocked.has(edge.id)) continue;
-    addNeighbor(neighbors, edge.from, edge.to, edge.distance);
-    addNeighbor(neighbors, edge.to, edge.from, edge.distance);
+    addDirected(neighbors, edge.from, edge.to, edge.distance);
+    if (edge.oneway !== true) {
+      addDirected(neighbors, edge.to, edge.from, edge.distance);
+    }
   }
   return neighbors;
 }
 
-function addNeighbor(neighbors, from, to, distance) {
-  const list = neighbors.get(from);
-  if (list) {
+function addDirected(neighbors, from, to, distance) {
+  let list = neighbors.get(from);
+  if (!list) {
+    list = [];
+    neighbors.set(from, list);
+  }
+
+  // Parallel roads in the same direction: keep the shorter one.
+  const existing = list.find((road) => road.to === to);
+  if (!existing) {
     list.push({ to, distance });
-  } else {
-    neighbors.set(from, [{ to, distance }]);
+  } else if (distance < existing.distance) {
+    existing.distance = distance;
   }
 }
 
