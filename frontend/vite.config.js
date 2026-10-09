@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -12,8 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Flood Relief Planner',
         short_name: 'FloodRelief',
-        description:
-          'Prototype flood-relief routing using simulated flood scenarios. Works offline.',
+        description: 'Prototype flood-relief routing using simulated flood scenarios. Works offline.',
         theme_color: '#0b3d5c',
         background_color: '#f4f7fa',
         display: 'standalone',
@@ -21,21 +19,15 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          {
-            src: 'icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
-        // App shell + the three scenario JSON files are precached so the app
-        // loads and routes fully offline after the first visit.
         globPatterns: ['**/*.{js,css,html,svg,png,json}'],
+        // roads.json for a whole city is > 2 MiB (Workbox's default precache limit)
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         runtimeCaching: [
           {
-            // Map tiles: only tiles the user has already viewed (lowest priority feature)
             urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/,
             handler: 'CacheFirst',
             options: {

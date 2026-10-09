@@ -121,3 +121,14 @@ input[type='range'] { width: 100%; accent-color: var(--accent); height: 28px; }
   .map-wrap { height: 58vh; }
   .sidebar { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
 }
+
+/* map click modes + road picker */
+.map.mode-start { cursor: crosshair; }
+.map.mode-road .leaflet-interactive { cursor: pointer; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 0.82rem; padding: 8px 6px; border: 0; background: #fff; color: var(--text); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent); color: #fff; font-weight: 700; }
+.road-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.road-row input { font: inherit; font-weight: 400; padding: 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.small-btn.dark { background: var(--navy); color: #fff; padding: 6px 12px; }

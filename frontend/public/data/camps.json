@@ -1,28 +1,25 @@
 {
   "camps": [
     {
-      "id": "camp-1",
-      "name": "Govt. School Relief Camp",
-      "nodeId": "D",
-      "capacity": 300,
-      "lat": 31.50474,
-      "lng": 74.30702
+      "id": "C1",
+      "name": "Demo Relief Camp 1",
+      "lat": 26.1556085,
+      "lng": 91.6762382,
+      "simulated": true
     },
     {
-      "id": "camp-2",
-      "name": "Community Hall Relief Camp",
-      "nodeId": "K",
-      "capacity": 150,
-      "lat": 31.49992,
-      "lng": 74.30479
+      "id": "C2",
+      "name": "Demo Relief Camp 2",
+      "lat": 26.155304,
+      "lng": 91.6763311,
+      "simulated": true
     },
     {
-      "id": "camp-3",
-      "name": "Stadium Relief Camp",
-      "nodeId": "I",
-      "capacity": 500,
-      "lat": 31.50018,
-      "lng": 74.30013
+      "id": "C3",
+      "name": "Demo Relief Camp 3",
+      "lat": 26.149691,
+      "lng": 91.6707451,
+      "simulated": true
     }
   ]
 }

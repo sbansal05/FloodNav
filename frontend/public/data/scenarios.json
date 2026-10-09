@@ -1,36 +1,39 @@
 {
   "scenarios": [
     {
-      "id": "minor",
-      "level": 1,
-      "name": "Minor flooding",
-      "blockedRoads": [
-        "EI"
+      "id": "level_1",
+      "label": "Simulated flooding: Level 1",
+      "blockedRoadIds": [
+        "E3286",
+        "E3301"
       ]
     },
     {
-      "id": "moderate",
-      "level": 2,
-      "name": "Moderate flooding",
-      "blockedRoads": [
-        "EI",
-        "EJ",
-        "FJ"
+      "id": "level_2",
+      "label": "Simulated flooding: Level 2",
+      "blockedRoadIds": [
+        "E3286",
+        "E3301",
+        "E7890"
       ]
     },
     {
-      "id": "severe",
-      "level": 3,
-      "name": "Severe flooding",
-      "blockedRoads": [
-        "EI",
-        "EJ",
-        "FJ",
-        "FK",
-        "GK",
-        "CD",
-        "DH",
-        "HL"
+      "id": "level_3",
+      "label": "Simulated flooding: Level 3",
+      "blockedRoadIds": [
+        "E3286",
+        "E3301",
+        "E7890",
+        "E9185",
+        "E2603",
+        "E315",
+        "E9420",
+        "E11956",
+        "E10151",
+        "E11272",
+        "E11428",
+        "E9195",
+        "E7200"
       ]
     }
   ]

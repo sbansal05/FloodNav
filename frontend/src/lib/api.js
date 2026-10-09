@@ -1,6 +1,5 @@
 // Report submission client (Person 4's API Gateway -> Lambda -> DynamoDB).
-// Set the full POST URL in .env as VITE_REPORTS_ENDPOINT, e.g.
-//   VITE_REPORTS_ENDPOINT=https://abc123.execute-api.ap-south-1.amazonaws.com/prod/reports
+// Set the full POST URL in .env as VITE_REPORTS_ENDPOINT.
 // Without it the app still works: reports are kept in the local queue.
 
 const ENDPOINT = import.meta.env?.VITE_REPORTS_ENDPOINT

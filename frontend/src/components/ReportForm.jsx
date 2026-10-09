@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { MAX_DESCRIPTION, REPORT_TYPES } from '../hooks/useReports.js'
+import { STATUS_STYLE } from '../lib/roadStyle.js'
+import { formatDistance } from '../lib/routing.js'
 
 const QUEUED_TEXT = {
   offline: 'You are offline. The report is saved on this device and will be sent automatically when you reconnect.',
@@ -7,16 +9,25 @@ const QUEUED_TEXT = {
   'no-backend': 'The report service is not connected yet. The report is saved on this device.',
 }
 
-export default function ReportForm({ edges, selectedRoadId, onSelectRoad, reports }) {
+export default function ReportForm({
+  edgeById,
+  statuses,
+  selectedRoadId,
+  onSelectRoad,
+  onPickOnMap,
+  reports,
+}) {
   const [type, setType] = useState(REPORT_TYPES[0].value)
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
+  const road = edgeById.get(selectedRoadId.trim())
+
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!edges.some((r) => r.id === selectedRoadId)) {
-      setFeedback({ kind: 'error', text: 'Choose a road first (or click one on the map).' })
+    if (!road) {
+      setFeedback({ kind: 'error', text: 'Pick a road on the map, or type a valid road ID.' })
       return
     }
     if (!description.trim()) {
@@ -25,7 +36,7 @@ export default function ReportForm({ edges, selectedRoadId, onSelectRoad, report
     }
     setSubmitting(true)
     try {
-      const result = await reports.submit({ roadId: selectedRoadId, type, description })
+      const result = await reports.submit({ roadId: road.id, type, description })
       if (result.status === 'sent') {
         setFeedback({ kind: 'ok', text: 'Report sent and stored. Thank you.' })
       } else if (result.status === 'queued') {
@@ -47,15 +58,30 @@ export default function ReportForm({ edges, selectedRoadId, onSelectRoad, report
       <h2 id="report-heading">Report a road</h2>
       <form onSubmit={handleSubmit} className="report-form">
         <label>
-          Road
-          <select value={selectedRoadId} onChange={(e) => onSelectRoad(e.target.value)}>
-            <option value="">Select a road…</option>
-            {edges.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.id} ({Math.round(r.distance)} m)
-              </option>
-            ))}
-          </select>
+          Road ID
+          <div className="road-row">
+            <input
+              type="text"
+              value={selectedRoadId}
+              onChange={(e) => onSelectRoad(e.target.value)}
+              placeholder="e.g. E123"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="button" className="small-btn dark" onClick={onPickOnMap}>
+              Pick on map
+            </button>
+          </div>
+          {road ? (
+            <span className="muted small">
+              {formatDistance(road.distance)} ·{' '}
+              {STATUS_STYLE[statuses.get(road.id) ?? 'open'].label}
+            </span>
+          ) : (
+            <span className="muted small">
+              Use “Pick on map”, then click a road. Or type its ID.
+            </span>
+          )}
         </label>
         <label>
           Condition

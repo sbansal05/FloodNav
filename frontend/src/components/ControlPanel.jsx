@@ -14,14 +14,14 @@ function Swatch({ color, dashed }) {
   )
 }
 
-function RouteSummary({ route, startId }) {
+function RouteSummary({ route, onZoomRoute }) {
   if (!route.reachable) {
     return (
       <div className="route-card unreachable" role="status">
         <strong>No reachable relief camp</strong>
         <p>
-          Every route from junction {startId} to a camp is cut off in this scenario. Try another
-          starting junction or a lower flood level.
+          Every route from your start point to a camp is cut off in this scenario. Try another
+          start point or a lower flood level.
         </p>
       </div>
     )
@@ -34,11 +34,15 @@ function RouteSummary({ route, startId }) {
         <p>You are already at this camp.</p>
       ) : (
         <p>
-          <span className="big">{formatDistance(route.distance)}</span> via {route.path.length - 1}{' '}
+          <span className="big">{formatDistance(route.distance)}</span> along {route.path.length - 1}{' '}
           road segments
         </p>
       )}
-      <p className="muted small">Route: {route.path.join(' → ')}</p>
+      {!atCamp && (
+        <button type="button" className="link" onClick={onZoomRoute}>
+          Zoom to route
+        </button>
+      )}
     </div>
   )
 }
@@ -48,13 +52,16 @@ export default function ControlPanel({
   level,
   onLevel,
   route,
-  startId,
   statuses,
+  drawEdges,
+  mode,
+  onMode,
+  onZoomRoute,
   warnings,
 }) {
   const scenario = scenarios[level]
   const counts = { open: 0, atrisk: 0, blocked: 0 }
-  for (const s of statuses.values()) counts[s]++
+  for (const e of drawEdges) counts[statuses.get(e.id) ?? 'open']++
 
   return (
     <section className="panel" aria-labelledby="scenario-heading">
@@ -81,14 +88,33 @@ export default function ControlPanel({
       </div>
       {scenario.description && <p className="muted small">{scenario.description}</p>}
       <p className="muted small">
-        {counts.blocked} of {statuses.size} roads blocked (simulated)
+        {counts.blocked} of {drawEdges.length} roads blocked (simulated)
       </p>
 
       <h2>Recommended route</h2>
-      <RouteSummary route={route} startId={startId} />
-      <p className="muted small">
-        Starting from junction {startId}. Click any junction on the map to move your start point.
-      </p>
+      <RouteSummary route={route} onZoomRoute={onZoomRoute} />
+
+      <h2>Map click action</h2>
+      <div className="seg" role="radiogroup" aria-label="Map click action">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={mode === 'start'}
+          className={mode === 'start' ? 'on' : ''}
+          onClick={() => onMode('start')}
+        >
+          Set my start point
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={mode === 'road'}
+          className={mode === 'road' ? 'on' : ''}
+          onClick={() => onMode('road')}
+        >
+          Select a road
+        </button>
+      </div>
 
       <h2>Road-risk legend</h2>
       <ul className="legend">
@@ -110,7 +136,7 @@ export default function ControlPanel({
 
       {warnings.length > 0 && (
         <details className="warnings">
-          <summary>Data warnings ({warnings.length})</summary>
+          <summary>Data notes ({warnings.length})</summary>
           <ul>
             {warnings.map((w) => (
               <li key={w}>{w}</li>

@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Tooltip, useMap } from 'react-leaflet'
+import { useEffect, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { formatDistance } from '../lib/routing.js'
-import { STATUS_STYLE } from '../lib/roadStyle.js'
+import { lineStyle } from '../lib/roadStyle.js'
+
+// One shared canvas renderer: thousands of SVG roads would be far too slow.
+const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 8 })
 
 // divIcons avoid Leaflet's default marker image paths, which break under bundlers.
 const campIcon = (active) =>
@@ -20,101 +22,173 @@ const startIcon = L.divIcon({
   iconAnchor: [19, 12],
 })
 
-function FitBounds({ points }) {
+/** All roads, created once and restyled when the scenario or selection changes. */
+function RoadsLayer({ edges, nodeById, statuses, selectedRoadId, mode, onSelectRoad }) {
+  const map = useMap()
+  const layersRef = useRef(new Map())
+  const appliedRef = useRef(new Map())
+  const live = useRef({ mode, onSelectRoad })
+
+  useEffect(() => {
+    live.current = { mode, onSelectRoad }
+  })
+
+  useEffect(() => {
+    const group = L.featureGroup()
+    const layers = new Map()
+    for (const e of edges) {
+      const a = nodeById.get(e.from)
+      const b = nodeById.get(e.to)
+      const line = L.polyline(
+        [
+          [a.lat, a.lng],
+          [b.lat, b.lng],
+        ],
+        { renderer: canvasRenderer, ...lineStyle('open', false) },
+      )
+      line.on('click', () => {
+        if (live.current.mode === 'road') live.current.onSelectRoad(e.id)
+      })
+      line.addTo(group)
+      layers.set(e.id, line)
+    }
+    group.addTo(map)
+    layersRef.current = layers
+    appliedRef.current = new Map()
+    return () => {
+      group.remove()
+      layersRef.current = new Map()
+    }
+  }, [map, edges, nodeById])
+
+  useEffect(() => {
+    const layers = layersRef.current
+    const applied = appliedRef.current
+    for (const e of edges) {
+      const line = layers.get(e.id)
+      if (!line) continue
+      const status = statuses.get(e.id) ?? 'open'
+      const selected = e.id === selectedRoadId
+      const key = status + (selected ? '*' : '')
+      if (applied.get(e.id) === key) continue
+      line.setStyle(lineStyle(status, selected))
+      applied.set(e.id, key)
+      if (selected) line.bringToFront()
+    }
+  }, [edges, statuses, selectedRoadId])
+
+  return null
+}
+
+/** Recommended route: white casing + blue line on top of the roads. */
+function RouteLayer({ route, nodeById }) {
   const map = useMap()
   useEffect(() => {
-    if (points.length) map.fitBounds(points, { padding: [32, 32] })
-  }, [map, points])
+    if (!route.reachable || route.path.length < 2) return
+    const pts = route.path.map((id) => {
+      const n = nodeById.get(id)
+      return [n.lat, n.lng]
+    })
+    const casing = L.polyline(pts, { renderer: canvasRenderer, color: '#fff', weight: 11, opacity: 0.9, interactive: false }).addTo(map)
+    const line = L.polyline(pts, { renderer: canvasRenderer, color: '#1f6feb', weight: 6, interactive: false }).addTo(map)
+    casing.bringToFront()
+    line.bringToFront()
+    return () => {
+      casing.remove()
+      line.remove()
+    }
+  }, [map, route, nodeById])
+  return null
+}
+
+/** Purple glow under roads the user has reported. */
+function ReportedLayer({ reportedRoadIds, edgeById, nodeById }) {
+  const map = useMap()
+  useEffect(() => {
+    const lines = []
+    for (const id of reportedRoadIds) {
+      const e = edgeById.get(id)
+      if (!e) continue
+      const a = nodeById.get(e.from)
+      const b = nodeById.get(e.to)
+      const line = L.polyline(
+        [
+          [a.lat, a.lng],
+          [b.lat, b.lng],
+        ],
+        { renderer: canvasRenderer, color: '#7b4bd6', weight: 14, opacity: 0.4, interactive: false },
+      ).addTo(map)
+      line.bringToBack()
+      lines.push(line)
+    }
+    return () => lines.forEach((l) => l.remove())
+  }, [map, reportedRoadIds, edgeById, nodeById])
+  return null
+}
+
+function MapClick({ mode, onPick }) {
+  useMapEvents({
+    click(e) {
+      if (mode === 'start') onPick(e.latlng.lat, e.latlng.lng)
+    },
+  })
+  return null
+}
+
+function FitController({ fit }) {
+  const map = useMap()
+  useEffect(() => {
+    if (fit?.points?.length) map.fitBounds(fit.points, { padding: [48, 48], maxZoom: 17 })
+  }, [map, fit])
   return null
 }
 
 export default function MapView({
-  nodes,
-  edges,
+  nodeById,
+  edgeById,
+  drawEdges,
   camps,
   statuses,
   route,
   startId,
-  onSetStart,
+  mode,
+  onPickStart,
   selectedRoadId,
   onSelectRoad,
   reportedRoadIds,
+  fit,
 }) {
-  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
-  const bounds = useMemo(() => nodes.map((n) => [n.lat, n.lng]), [nodes])
-  const pos = (id) => {
-    const n = nodeById.get(id)
-    return [n.lat, n.lng]
-  }
-  const routePositions = route.reachable ? route.path.map(pos) : []
   const start = nodeById.get(startId)
+  const center = camps[0] ? [camps[0].lat, camps[0].lng] : [start.lat, start.lng]
 
   return (
-    <MapContainer center={bounds[0]} zoom={16} className="map" scrollWheelZoom>
+    <MapContainer
+      center={center}
+      zoom={14}
+      className={`map mode-${mode}`}
+      renderer={canvasRenderer}
+      scrollWheelZoom
+    >
       <TileLayer
         attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds points={bounds} />
+      <FitController fit={fit} />
+      <MapClick mode={mode} onPick={onPickStart} />
 
-      {edges.map((e) => {
-        const positions = [pos(e.from), pos(e.to)]
-        const status = statuses.get(e.id) ?? 'open'
-        const style = STATUS_STYLE[status]
-        const selected = e.id === selectedRoadId
-        return (
-          <div key={e.id}>
-            {reportedRoadIds.has(e.id) && (
-              <Polyline
-                positions={positions}
-                pathOptions={{ color: '#7b4bd6', weight: 14, opacity: 0.35 }}
-                interactive={false}
-              />
-            )}
-            <Polyline
-              positions={positions}
-              pathOptions={{
-                color: style.color,
-                weight: selected ? 8 : 5,
-                dashArray: style.dashArray,
-                opacity: 0.95,
-              }}
-              eventHandlers={{ click: () => onSelectRoad(e.id) }}
-            >
-              <Tooltip sticky>
-                Road {e.id} · {formatDistance(e.distance)} · {style.label}
-                {reportedRoadIds.has(e.id) ? ' · reported' : ''}
-              </Tooltip>
-            </Polyline>
-          </div>
-        )
-      })}
-
-      {routePositions.length > 1 && (
-        <>
-          <Polyline positions={routePositions} pathOptions={{ color: '#fff', weight: 11, opacity: 0.9 }} interactive={false} />
-          <Polyline positions={routePositions} pathOptions={{ color: '#1f6feb', weight: 6 }} interactive={false} />
-        </>
-      )}
-
-      {nodes.map((n) => (
-        <CircleMarker
-          key={n.id}
-          center={[n.lat, n.lng]}
-          radius={n.id === startId ? 0 : 6}
-          pathOptions={{ color: '#334', weight: 2, fillColor: '#fff', fillOpacity: 1 }}
-          eventHandlers={{ click: () => onSetStart(n.id) }}
-        >
-          <Tooltip direction="top">Junction {n.id}: click to start here</Tooltip>
-        </CircleMarker>
-      ))}
+      <ReportedLayer reportedRoadIds={reportedRoadIds} edgeById={edgeById} nodeById={nodeById} />
+      <RoadsLayer
+        edges={drawEdges}
+        nodeById={nodeById}
+        statuses={statuses}
+        selectedRoadId={selectedRoadId}
+        mode={mode}
+        onSelectRoad={onSelectRoad}
+      />
+      <RouteLayer route={route} nodeById={nodeById} />
 
       {camps.map((c) => (
-        <Marker
-          key={c.id}
-          position={[c.lat, c.lng]}
-          icon={campIcon(route.camp?.id === c.id)}
-        >
+        <Marker key={c.id} position={[c.lat, c.lng]} icon={campIcon(route.camp?.id === c.id)}>
           <Tooltip direction="top" offset={[0, -12]}>
             {c.name}
             {c.capacity ? ` · capacity ${c.capacity}` : ''}
