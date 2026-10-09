@@ -1,0 +1,37 @@
+{
+  "scenarios": [
+    {
+      "id": "minor",
+      "level": 1,
+      "name": "Minor flooding",
+      "blockedRoads": [
+        "EI"
+      ]
+    },
+    {
+      "id": "moderate",
+      "level": 2,
+      "name": "Moderate flooding",
+      "blockedRoads": [
+        "EI",
+        "EJ",
+        "FJ"
+      ]
+    },
+    {
+      "id": "severe",
+      "level": 3,
+      "name": "Severe flooding",
+      "blockedRoads": [
+        "EI",
+        "EJ",
+        "FJ",
+        "FK",
+        "GK",
+        "CD",
+        "DH",
+        "HL"
+      ]
+    }
+  ]
+}

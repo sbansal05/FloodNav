@@ -1,0 +1,28 @@
+{
+  "camps": [
+    {
+      "id": "camp-1",
+      "name": "Govt. School Relief Camp",
+      "nodeId": "D",
+      "capacity": 300,
+      "lat": 31.50474,
+      "lng": 74.30702
+    },
+    {
+      "id": "camp-2",
+      "name": "Community Hall Relief Camp",
+      "nodeId": "K",
+      "capacity": 150,
+      "lat": 31.49992,
+      "lng": 74.30479
+    },
+    {
+      "id": "camp-3",
+      "name": "Stadium Relief Camp",
+      "nodeId": "I",
+      "capacity": 500,
+      "lat": 31.50018,
+      "lng": 74.30013
+    }
+  ]
+}

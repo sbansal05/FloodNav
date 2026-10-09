@@ -1,0 +1,186 @@
+{
+  "nodes": [
+    {
+      "id": "A",
+      "lat": 31.5044,
+      "lng": 74.3004
+    },
+    {
+      "id": "B",
+      "lat": 31.50453,
+      "lng": 74.30246
+    },
+    {
+      "id": "C",
+      "lat": 31.50465,
+      "lng": 74.30442
+    },
+    {
+      "id": "D",
+      "lat": 31.50474,
+      "lng": 74.30702
+    },
+    {
+      "id": "E",
+      "lat": 31.50259,
+      "lng": 74.30033
+    },
+    {
+      "id": "F",
+      "lat": 31.5026,
+      "lng": 74.30268
+    },
+    {
+      "id": "G",
+      "lat": 31.50256,
+      "lng": 74.30456
+    },
+    {
+      "id": "H",
+      "lat": 31.50249,
+      "lng": 74.30685
+    },
+    {
+      "id": "I",
+      "lat": 31.50018,
+      "lng": 74.30013
+    },
+    {
+      "id": "J",
+      "lat": 31.50006,
+      "lng": 74.30279
+    },
+    {
+      "id": "K",
+      "lat": 31.49992,
+      "lng": 74.30479
+    },
+    {
+      "id": "L",
+      "lat": 31.4998,
+      "lng": 74.3068
+    }
+  ],
+  "edges": [
+    {
+      "id": "AB",
+      "from": "A",
+      "to": "B",
+      "distance": 196
+    },
+    {
+      "id": "BC",
+      "from": "B",
+      "to": "C",
+      "distance": 186
+    },
+    {
+      "id": "CD",
+      "from": "C",
+      "to": "D",
+      "distance": 247
+    },
+    {
+      "id": "EF",
+      "from": "E",
+      "to": "F",
+      "distance": 223
+    },
+    {
+      "id": "FG",
+      "from": "F",
+      "to": "G",
+      "distance": 178
+    },
+    {
+      "id": "GH",
+      "from": "G",
+      "to": "H",
+      "distance": 217
+    },
+    {
+      "id": "IJ",
+      "from": "I",
+      "to": "J",
+      "distance": 253
+    },
+    {
+      "id": "JK",
+      "from": "J",
+      "to": "K",
+      "distance": 190
+    },
+    {
+      "id": "KL",
+      "from": "K",
+      "to": "L",
+      "distance": 191
+    },
+    {
+      "id": "AE",
+      "from": "A",
+      "to": "E",
+      "distance": 201
+    },
+    {
+      "id": "EI",
+      "from": "E",
+      "to": "I",
+      "distance": 269
+    },
+    {
+      "id": "BF",
+      "from": "B",
+      "to": "F",
+      "distance": 216
+    },
+    {
+      "id": "FJ",
+      "from": "F",
+      "to": "J",
+      "distance": 283
+    },
+    {
+      "id": "CG",
+      "from": "C",
+      "to": "G",
+      "distance": 233
+    },
+    {
+      "id": "GK",
+      "from": "G",
+      "to": "K",
+      "distance": 294
+    },
+    {
+      "id": "DH",
+      "from": "D",
+      "to": "H",
+      "distance": 251
+    },
+    {
+      "id": "HL",
+      "from": "H",
+      "to": "L",
+      "distance": 299
+    },
+    {
+      "id": "BG",
+      "from": "B",
+      "to": "G",
+      "distance": 296
+    },
+    {
+      "id": "FK",
+      "from": "F",
+      "to": "K",
+      "distance": 359
+    },
+    {
+      "id": "EJ",
+      "from": "E",
+      "to": "J",
+      "distance": 365
+    }
+  ]
+}
