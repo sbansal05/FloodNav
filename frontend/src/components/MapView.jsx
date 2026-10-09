@@ -8,12 +8,12 @@ import { lineStyle } from '../lib/roadStyle.js'
 const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 8 })
 
 // divIcons avoid Leaflet's default marker image paths, which break under bundlers.
-const campIcon = (active) =>
+const campIcon = (label, active) =>
   L.divIcon({
     className: '',
-    html: `<div class="map-pin camp ${active ? 'active' : ''}">+</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    html: `<div class="map-pin camp ${active ? 'active' : ''}">${label}</div>`,
+    iconSize: [64, 26],
+    iconAnchor: [32, 13],
   })
 const startIcon = L.divIcon({
   className: '',
@@ -138,7 +138,13 @@ function MapClick({ mode, onPick }) {
 function FitController({ fit }) {
   const map = useMap()
   useEffect(() => {
-    if (fit?.points?.length) map.fitBounds(fit.points, { padding: [48, 48], maxZoom: 17 })
+    if (!fit?.points?.length) return
+    // Wait one frame so the map knows its real size before zooming to the route.
+    const id = requestAnimationFrame(() => {
+      map.invalidateSize()
+      map.fitBounds(fit.points, { padding: [48, 48], maxZoom: 17 })
+    })
+    return () => cancelAnimationFrame(id)
   }, [map, fit])
   return null
 }
@@ -187,8 +193,13 @@ export default function MapView({
       />
       <RouteLayer route={route} nodeById={nodeById} />
 
-      {camps.map((c) => (
-        <Marker key={c.id} position={[c.lat, c.lng]} icon={campIcon(route.camp?.id === c.id)}>
+      {camps.map((c, i) => (
+        <Marker
+          key={c.id}
+          position={[c.lat, c.lng]}
+          icon={campIcon(`Camp ${i + 1}`, route.camp?.id === c.id)}
+          zIndexOffset={500}
+        >
           <Tooltip direction="top" offset={[0, -12]}>
             {c.name}
             {c.capacity ? ` · capacity ${c.capacity}` : ''}

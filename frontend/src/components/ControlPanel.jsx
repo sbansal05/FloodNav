@@ -132,6 +132,10 @@ export default function ControlPanel({
           <Swatch color="#7b4bd6" />
           Road you reported
         </li>
+        <li>
+          <span className="legend-camp">CAMP</span>
+          Relief camp (simulated)
+        </li>
       </ul>
 
       {warnings.length > 0 && (
