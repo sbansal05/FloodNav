@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    // lets the frontend import Person 2's routing code from the repo root (src/algorithms)
+    fs: { allow: ['..'] },
+  },
   plugins: [
     react(),
     VitePWA({

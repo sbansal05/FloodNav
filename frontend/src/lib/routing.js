@@ -1,6 +1,5 @@
-// Adapter between the UI and Person 2's routing module (src/algorithms/).
 // The UI only ever calls computeBestRoute, so if the module's interface changes only this file does.
-import { findNearestReachableCamp } from '../algorithms/reliefCamps.js'
+import { findNearestReachableCamp } from '../../../src/algorithms/reliefCamps.js'
 
 /**
  * Finds the nearest reachable relief camp by road distance.
@@ -11,12 +10,12 @@ import { findNearestReachableCamp } from '../algorithms/reliefCamps.js'
  * @returns { path, distance, reachable, camp }  (unreachable: path [], distance 0, camp null)
  */
 export function computeBestRoute(graph, blockedRoads, startId, camps) {
-  const r = findNearestReachableCamp(graph, startId, camps, blockedRoads)
+  const engineCamps = camps.map((c) => ({ ...c, id: c.nodeId }))
+  const r = findNearestReachableCamp(graph, startId, engineCamps, blockedRoads)
   if (!r?.reachable || !r.camp || !Array.isArray(r.path) || r.path.length === 0) {
     return { path: [], distance: 0, reachable: false, camp: null }
   }
-  // Return our own camp object (with name etc.) even if the engine returns a copy.
-  const camp = camps.find((c) => c.id === r.camp.id) ?? r.camp
+  const camp = camps.find((c) => c.nodeId === r.camp.id) ?? null
   return { path: r.path, distance: r.distance, reachable: true, camp }
 }
 
