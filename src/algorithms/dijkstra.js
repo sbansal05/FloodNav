@@ -43,22 +43,13 @@ export function findShortestPath(graph, startId, endId, blockedRoadIds = []) {
   distance.set(startId, 0);
 
   const settled = new Set();
+  const heap = new MinHeap();
+  heap.push(startId, 0);
 
-  while (settled.size < nodeIds.size) {
-    // Always expand the unsettled node that is currently closest to the start.
-    let current = null;
-    let best = Infinity;
-    for (const id of nodeIds) {
-      if (settled.has(id)) continue;
-      const candidate = distance.get(id);
-      if (candidate < best) {
-        best = candidate;
-        current = id;
-      }
-    }
-
-    // Remaining nodes cannot be reached from the start.
-    if (current === null || best === Infinity) break;
+  while (heap.size > 0) {
+    const { nodeId: current, priority } = heap.pop();
+    // A shorter route may have been recorded after this entry was queued.
+    if (settled.has(current) || priority !== distance.get(current)) continue;
 
     settled.add(current);
     if (current === endId) break;
@@ -66,10 +57,11 @@ export function findShortestPath(graph, startId, endId, blockedRoadIds = []) {
     for (const road of neighbors.get(current) ?? []) {
       if (settled.has(road.to)) continue;
       // Relaxation: keep a neighbor's route only when this one is shorter.
-      const viaCurrent = distance.get(current) + road.distance;
+      const viaCurrent = priority + road.distance;
       if (viaCurrent < distance.get(road.to)) {
         distance.set(road.to, viaCurrent);
         previous.set(road.to, current);
+        heap.push(road.to, viaCurrent);
       }
     }
   }
@@ -129,6 +121,55 @@ function validateGraph(graph) {
   }
 
   return nodeIds;
+}
+
+class MinHeap {
+  constructor() {
+    this.items = [];
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(nodeId, priority) {
+    const items = this.items;
+    items.push({ nodeId, priority });
+    let index = items.length - 1;
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (items[parent].priority <= items[index].priority) break;
+      swap(items, parent, index);
+      index = parent;
+    }
+  }
+
+  pop() {
+    const items = this.items;
+    const top = items[0];
+    const last = items.pop();
+    if (items.length > 0) {
+      items[0] = last;
+      let index = 0;
+      while (true) {
+        const left = index * 2 + 1;
+        const right = left + 1;
+        let smallest = index;
+        if (left < items.length && items[left].priority < items[smallest].priority) smallest = left;
+        if (right < items.length && items[right].priority < items[smallest].priority) smallest = right;
+        if (smallest === index) break;
+        swap(items, index, smallest);
+        index = smallest;
+      }
+    }
+    return top;
+  }
+}
+
+function swap(items, left, right) {
+  const temp = items[left];
+  items[left] = items[right];
+  items[right] = temp;
 }
 
 function validateBlockedRoads(blockedRoadIds) {

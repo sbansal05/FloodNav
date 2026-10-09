@@ -7,74 +7,65 @@ import { findNearestReachableCamp } from "../src/algorithms/reliefCamps.js";
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "../frontend/public/data");
 const START_KEY = "6722487558";
-const DEMO_NODE_IDS = new Set(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]);
 
-// Expected results stay in this test. They are not written into the routing code.
+// Candidate expectations from Person 3. These stay in the test only.
+const DISTANCE_TOLERANCE_METRES = 0.5;
+
 const expectedRoutes = [
-  { label: "No flooding", campId: "C1", distance: 6197, segments: 38 },
-  { label: "L1", campId: "C1", distance: 6630, segments: 45 },
-  { label: "L2", campId: "C1", distance: 7221, segments: 52 },
-  { label: "L3", campId: "C1", distance: 7676, segments: 95 },
+  { label: "No flooding", scenarioId: null, campId: "566643822", distance: 6197, segments: 38 },
+  { label: "Level 1", scenarioId: "level_1", campId: "566643822", distance: 6630, segments: 45 },
+  { label: "Level 2", scenarioId: "level_2", campId: "566643822", distance: 7676, segments: 95 },
+  { label: "Level 3", scenarioId: "level_3", campId: "566643822", distance: 9705, segments: 102 },
 ];
 
 const roads = await readJson("roads.json");
 const campsFile = await readJson("camps.json");
 const scenariosFile = await readJson("scenarios.json");
-const camps = Array.isArray(campsFile) ? campsFile : (campsFile.camps ?? []);
-const scenarios = Array.isArray(scenariosFile) ? scenariosFile : (scenariosFile.scenarios ?? []);
+const camps = campsFile.camps;
+const scenarios = scenariosFile.scenarios;
+const startNode = (roads.nodes ?? []).find((node) => String(node.id) === START_KEY);
 
-const nodes = roads.nodes ?? [];
-const startNode = nodes.find((node) => sameId(node.id, START_KEY));
-const isDemoGrid = nodes.length > 0 && nodes.every((node) => DEMO_NODE_IDS.has(String(node.id)));
-const floodScenarios = expectedRoutes.filter((route) => route.label !== "No flooding");
-const missingScenarioLabels = floodScenarios
-  .filter((route) => !findScenario(route.label))
-  .map((route) => route.label);
+test("Guwahati routes from 6722487558 match the candidate expectations", () => {
+  assert.ok(startNode, "roads.json has no node 6722487558");
+  assert.ok(Array.isArray(camps), "camps.json must contain a camps array");
+  assert.ok(Array.isArray(scenarios), "scenarios.json must contain a scenarios array");
 
-const skipReason = skipExplanation();
+  const lines = [];
+  let failed = false;
 
-test(
-  "real road data matches the expected camp routes from 6722487558",
-  { skip: skipReason || false },
-  () => {
-    for (const expected of expectedRoutes) {
-      const blockedRoadIds = blockedRoadsFor(expected.label);
-      const result = findNearestReachableCamp(roads, startNode.id, camps, blockedRoadIds);
-      const segments = result.path.length - 1;
-      assert.equal(result.reachable, true, `${expected.label} should reach a camp`);
-      assert.equal(String(result.camp?.id), expected.campId, `${expected.label} camp`);
-      assert.equal(result.distance, expected.distance, `${expected.label} distance was ${result.distance}`);
-      assert.equal(segments, expected.segments, `${expected.label} segments were ${segments}`);
-    }
-  },
-);
+  for (const expected of expectedRoutes) {
+    const blockedRoadIds = blockedRoadsFor(expected.scenarioId);
+    const result = findNearestReachableCamp(roads, startNode.id, camps, blockedRoadIds);
+    const segments = result.reachable ? result.path.length - 1 : null;
+    const campId = result.camp?.id ?? null;
+    const distanceMatches =
+      typeof result.distance === "number" &&
+      Math.abs(result.distance - expected.distance) <= DISTANCE_TOLERANCE_METRES;
+    const matches =
+      result.reachable === true &&
+      String(campId) === expected.campId &&
+      distanceMatches &&
+      segments === expected.segments;
 
-function skipExplanation() {
-  if (isDemoGrid) {
-    return "roads.json is the documented A–L sample grid, not the graph containing node 6722487558. The OSM route check is skipped, and the expected distances were not changed.";
+    if (!matches) failed = true;
+    lines.push(
+      `${expected.label}: actual camp ${campId}, ${result.distance} m, ${segments} segments; expected ${formatExpected(expected)}`,
+    );
   }
-  if (!startNode) {
-    return "roads.json has no node 6722487558 when ids are compared as text, whether stored as strings or numbers. The OSM route check is skipped.";
-  }
-  if (missingScenarioLabels.length > 0) {
-    const available = scenarios.map((scenario) => scenario.id ?? scenario.name).join(", ");
-    return `Node 6722487558 is present, but ${missingScenarioLabels.join(", ")} are not scenario ids or names. Available scenarios: ${available}. No L1/L2/L3 mapping was inferred, and the expected distances were not changed.`;
-  }
-  return "";
+
+  assert.equal(failed, false, `Route results differ from the candidate expectations.\n${lines.join("\n")}`);
+});
+
+function blockedRoadsFor(scenarioId) {
+  if (scenarioId === null) return [];
+  const scenario = scenarios.find((item) => item.id === scenarioId);
+  assert.ok(scenario, `Missing scenario ${scenarioId}`);
+  assert.ok(Array.isArray(scenario.blockedRoadIds), `${scenarioId} has no blockedRoadIds array`);
+  return scenario.blockedRoadIds;
 }
 
-function findScenario(label) {
-  return scenarios.find((scenario) => sameId(scenario.id, label) || sameId(scenario.name, label));
-}
-
-function blockedRoadsFor(label) {
-  if (label === "No flooding") return [];
-  const scenario = findScenario(label);
-  return scenario.blockedRoads ?? scenario.blockedRoadIds ?? scenario.blocked ?? [];
-}
-
-function sameId(left, right) {
-  return String(left) === String(right);
+function formatExpected(expected) {
+  return `camp ${expected.campId}, ${expected.distance} m, ${expected.segments} segments`;
 }
 
 function readJson(name) {
