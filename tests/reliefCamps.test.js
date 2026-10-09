@@ -117,6 +117,42 @@ test("rejects invalid or duplicate camp IDs", () => {
   );
 });
 
+test("uses nodeId as the graph destination and returns the original camp", () => {
+  const nearer = { id: "C1", name: "Govt School", nodeId: "near", capacity: 300 };
+  const farther = { id: "C2", name: "Community Hall", nodeId: "far" };
+
+  const result = findNearestReachableCamp(areaGraph(), "start", [farther, nearer]);
+
+  assert.equal(result.camp, nearer);
+  assert.deepEqual(result, {
+    camp: nearer,
+    path: ["start", "near"],
+    distance: 2,
+    reachable: true,
+  });
+});
+
+test("returns distance 0 when the start node is the camp nodeId", () => {
+  const camp = { id: "C1", name: "Already here", nodeId: "start" };
+
+  const result = findNearestReachableCamp(areaGraph(), "start", [camp]);
+
+  assert.equal(result.camp, camp);
+  assert.deepEqual(result, {
+    camp,
+    path: ["start"],
+    distance: 0,
+    reachable: true,
+  });
+});
+
+test("rejects a camp nodeId that is not a graph node", () => {
+  assert.throws(
+    () => findNearestReachableCamp(areaGraph(), "start", [{ id: "C1", name: "Ghost", nodeId: "missing-node" }]),
+    /Camp C1 nodeId does not exist in the graph: missing-node/,
+  );
+});
+
 test("rejects a camp ID that is not a graph node", () => {
   assert.throws(
     () => findNearestReachableCamp(areaGraph(), "start", [nearCamp, { id: "missing-camp", name: "Ghost" }]),

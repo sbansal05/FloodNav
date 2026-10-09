@@ -111,6 +111,108 @@ test("rejects duplicate node IDs, duplicate road IDs, and invalid endpoints", ()
   );
 });
 
+test("travels a one-way road only from from to to", () => {
+  const graph = {
+    nodes: [
+      { id: "A", lat: 0, lng: 0 },
+      { id: "B", lat: 1, lng: 0 },
+    ],
+    edges: [{ id: "ab", from: "A", to: "B", distance: 4, oneway: true }],
+  };
+
+  assert.deepEqual(findShortestPath(graph, "A", "B"), {
+    path: ["A", "B"],
+    distance: 4,
+    reachable: true,
+  });
+  assert.deepEqual(findShortestPath(graph, "B", "A"), {
+    path: [],
+    distance: null,
+    reachable: false,
+  });
+});
+
+test("does not use a blocked road in either direction", () => {
+  const graph = {
+    nodes: [
+      { id: "A", lat: 0, lng: 0 },
+      { id: "B", lat: 0, lng: 1 },
+      { id: "C", lat: 1, lng: 0 },
+    ],
+    edges: [
+      { id: "ab", from: "A", to: "B", distance: 1 },
+      { id: "ac", from: "A", to: "C", distance: 5 },
+      { id: "cb", from: "C", to: "B", distance: 5 },
+    ],
+  };
+
+  assert.deepEqual(findShortestPath(graph, "A", "B", ["ab"]), {
+    path: ["A", "C", "B"],
+    distance: 10,
+    reachable: true,
+  });
+  assert.deepEqual(findShortestPath(graph, "B", "A", ["ab"]), {
+    path: ["B", "C", "A"],
+    distance: 10,
+    reachable: true,
+  });
+});
+
+test("keeps the cheapest edge when two roads share a direction", () => {
+  const oneWay = {
+    nodes: [
+      { id: "A", lat: 0, lng: 0 },
+      { id: "B", lat: 1, lng: 0 },
+    ],
+    edges: [
+      { id: "slow", from: "A", to: "B", distance: 10, oneway: true },
+      { id: "fast", from: "A", to: "B", distance: 3, oneway: true },
+    ],
+  };
+  assert.deepEqual(findShortestPath(oneWay, "A", "B"), {
+    path: ["A", "B"],
+    distance: 3,
+    reachable: true,
+  });
+
+  const bothWays = {
+    nodes: [
+      { id: "A", lat: 0, lng: 0 },
+      { id: "B", lat: 1, lng: 0 },
+    ],
+    edges: [
+      { id: "long", from: "A", to: "B", distance: 10 },
+      { id: "short", from: "A", to: "B", distance: 2 },
+    ],
+  };
+  assert.equal(findShortestPath(bothWays, "A", "B").distance, 2);
+  assert.equal(findShortestPath(bothWays, "B", "A").distance, 2);
+});
+
+test("routes two-way travel represented by two directed edges", () => {
+  const graph = {
+    nodes: [
+      { id: "A", lat: 0, lng: 0 },
+      { id: "B", lat: 1, lng: 0 },
+    ],
+    edges: [
+      { id: "ab", from: "A", to: "B", distance: 5, oneway: true },
+      { id: "ba", from: "B", to: "A", distance: 9, oneway: true },
+    ],
+  };
+
+  assert.deepEqual(findShortestPath(graph, "A", "B"), {
+    path: ["A", "B"],
+    distance: 5,
+    reachable: true,
+  });
+  assert.deepEqual(findShortestPath(graph, "B", "A"), {
+    path: ["B", "A"],
+    distance: 9,
+    reachable: true,
+  });
+});
+
 test("rejects a malformed graph", () => {
   assert.throws(() => findShortestPath(null, "A", "B"), /Graph must be an object/);
   assert.throws(

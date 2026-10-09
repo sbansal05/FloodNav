@@ -3,11 +3,13 @@ import { findShortestPath } from "./dijkstra.js";
 /**
  * Pick the relief camp with the shortest unblocked route from a starting place.
  *
- * Each camp needs an `id` that matches a graph node. `name` is optional.
+ * A camp's graph location is `nodeId` when that field is set. Otherwise `id`
+ * is the graph node, which keeps the earlier camp format working.
+ * The returned `camp` is the same object that was passed in.
  *
  * @param {Parameters<typeof findShortestPath>[0]} graph
  * @param {string | number} startId
- * @param {Array<{ id: string | number, name?: string }>} camps
+ * @param {Array<{ id: string | number, name?: string, nodeId?: string | number }>} camps
  * @param {Array<string | number>} blockedRoadIds
  * @returns {{ camp: { id: string | number, name?: string } | null, path: Array<string | number>, distance: number | null, reachable: boolean }}
  */
@@ -18,7 +20,7 @@ export function findNearestReachableCamp(graph, startId, camps, blockedRoadIds =
   let nearest = null;
 
   for (const camp of camps) {
-    const route = findShortestPath(graph, startId, camp.id, blockedRoadIds);
+    const route = findShortestPath(graph, startId, campNodeId(camp), blockedRoadIds);
     if (!route.reachable) continue;
 
     // Strict < keeps the earlier camp when two distances are equal.
@@ -76,8 +78,20 @@ function assertCampIdsExist(graph, camps) {
   }
 
   for (const camp of camps) {
-    if (!nodeIds.has(camp.id)) {
+    const nodeId = campNodeId(camp);
+    if (!nodeIds.has(nodeId)) {
+      if (hasNodeId(camp.nodeId)) {
+        throw new Error(`Camp ${String(camp.id)} nodeId does not exist in the graph: ${String(camp.nodeId)}`);
+      }
       throw new Error(`Camp ID does not exist in the graph: ${String(camp.id)}`);
     }
   }
+}
+
+function campNodeId(camp) {
+  return hasNodeId(camp.nodeId) ? camp.nodeId : camp.id;
+}
+
+function hasNodeId(nodeId) {
+  return nodeId !== undefined && nodeId !== null && nodeId !== "";
 }
