@@ -24,7 +24,11 @@ export default function ReportForm({
   const [feedback, setFeedback] = useState(null)
 
   const road = edgeById.get(selectedRoadId.trim())
-
+  // Once a queued report has synced, replace the "saved on this device" message.
+  const shownFeedback =
+    feedback?.kind === 'queued' && reports.pending.length === 0
+      ? { kind: 'ok', text: 'Your saved report has now been sent. Thank you.' }
+      : feedback
   async function handleSubmit(e) {
     e.preventDefault()
     if (!road) {
@@ -107,9 +111,9 @@ export default function ReportForm({
         <button type="submit" disabled={submitting}>
           {submitting ? 'Submitting…' : 'Submit report'}
         </button>
-        {feedback && (
-          <p className={`feedback ${feedback.kind}`} role="status">
-            {feedback.text}
+        {shownFeedback && (
+          <p className={`feedback ${shownFeedback.kind}`} role="status">
+            {shownFeedback.text}
           </p>
         )}
       </form>
