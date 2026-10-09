@@ -55,9 +55,14 @@ export function useReports() {
           await removePending(item.reportId) // confirmed saved: drop from the queue
           markSent(item.roadId)
         } catch (err) {
-          if (err.status === undefined) break // can't reach the server: stop, retry later
+          console.warn('[reports] sync failed for', item.reportId, err)
+          if (err.status === undefined) {
+            // Request never reached the server (still offline, or blocked e.g. by CORS).
+            await updatePending({ ...item, lastError: 'Could not reach the server, will retry' })
+            break // the rest would fail the same way: stop, retry later
+          }
           // Server replied but did not confirm: keep it and retry later.
-          await updatePending({ ...item, lastError: `Not saved yet (HTTP ${err.status})` })
+          await updatePending({ ...item, lastError: `Not saved yet (HTTP ${err.status}), will retry` })
         }
       }
     } finally {
@@ -68,11 +73,18 @@ export function useReports() {
   }, [refresh, markSent])
 
   useEffect(() => {
+    // The browser reports "online" slightly before requests actually work again,
+    // so retry a few times shortly after reconnecting instead of once immediately.
+    let reconnectTimers = []
     const goOnline = () => {
       setOnline(true)
-      syncNow()
+      reconnectTimers.forEach(clearTimeout)
+      reconnectTimers = [1000, 4000, 10000].map((ms) => setTimeout(syncNow, ms))
     }
-    const goOffline = () => setOnline(false)
+    const goOffline = () => {
+      setOnline(false)
+      reconnectTimers.forEach(clearTimeout)
+    }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     refresh().then(syncNow)
@@ -81,6 +93,7 @@ export function useReports() {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
       clearInterval(timer)
+      reconnectTimers.forEach(clearTimeout)
     }
   }, [refresh, syncNow])
 
