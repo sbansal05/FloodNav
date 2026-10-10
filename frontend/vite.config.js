@@ -13,7 +13,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'Flood Nav',
+        name: 'FloodNav',
         short_name: 'FloodNav',
         description: 'Prototype flood-relief routing using simulated flood scenarios. Works offline.',
         theme_color: '#0b3d5c',
