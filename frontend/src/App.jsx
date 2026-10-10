@@ -75,7 +75,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Flood Relief Planner</h1>
+        <h1>Flood Nav</h1>
         <StatusBar reports={reports} />
       </header>
       <p className="disclaimer" role="note">
