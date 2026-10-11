@@ -8,9 +8,9 @@ FloodNav finds the shortest safe route to the nearest relief camp, avoids roads 
 > ⚠️ **Prototype.** Flood levels are **simulated**, citizen reports are **not verified**, and routes are **not guaranteed safe** in the real world. Do not use for real emergencies.
 
 <p align="center">
-  <img src="docs/screenshots/map-route.png" width="30%" alt="Map with route to relief camp" />
-  <img src="docs/screenshots/flood-level-3.png" width="30%" alt="Flooded roads at level 3" />
-  <img src="docs/screenshots/offline-report.png" width="30%" alt="Offline report waiting to sync" />
+  <img src="docs/screenshots/map-route.jpeg" width="30%" alt="Map with route to relief camp" />
+  <img src="docs/screenshots/flood-level-3.jpeg" width="30%" alt="Flooded roads at level 3" />
+  <img src="docs/screenshots/offline-report.jpeg" width="30%" alt="Offline report waiting to sync" />
 </p>
 
 ---
