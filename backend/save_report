@@ -1,0 +1,173 @@
+"""
+saveFloodReport - receives a flood report from the app and saves it to DynamoDB.
+
+Flow: API Gateway -> this Lambda -> DynamoDB table (FloodReports)
+
+Expected request body (JSON):
+{
+  "reportId": "demo-report-001",      # made on the phone, letters/numbers/-/_ only
+  "roadId": "AB",                     # must be a road ID from roads.json
+  "type": "flooded",                  # one of: flooded, blocked, safe
+  "description": "Water covering the road",   # optional, max 300 characters
+  "createdAt": "2026-10-09T10:30:00Z"         # optional, when the phone made the report
+}
+"""
+
+import base64
+import json
+import os
+import re
+from datetime import datetime, timezone
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+
+# The table name comes from an environment variable, so you can change it without editing code.
+TABLE_NAME = os.environ.get("TABLE_NAME", "FloodReports")
+table = boto3.resource("dynamodb").Table(TABLE_NAME)
+
+# Email alerts (optional). If TOPIC_ARN is not set, no alert is sent and
+# reports still save normally.
+TOPIC_ARN = os.environ.get("TOPIC_ARN", "").strip()
+APP_URL = os.environ.get("APP_URL", "").strip()
+# Short timeouts and no retries: a slow alert must never hold up saving a report.
+sns = boto3.client(
+    "sns",
+    config=Config(connect_timeout=2, read_timeout=2, retries={"max_attempts": 1}),
+)
+
+TYPE_LABELS = {
+    "flooded": "FLOODED",
+    "blocked": "BLOCKED",
+    "safe": "Reported safe",
+}
+
+ALLOWED_TYPES = {"flooded", "blocked", "safe"}
+ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # safe, short IDs only
+MAX_DESCRIPTION = 300
+
+# Lets the website (running on a different domain) call this API from the browser.
+# For the demo "*" is fine; later, replace it with your real site URL.
+CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+}
+
+
+def respond(status_code, body):
+    return {
+        "statusCode": status_code,
+        "headers": CORS_HEADERS,
+        "body": json.dumps(body),
+    }
+
+
+def read_body(event):
+    """Get the JSON body out of the API Gateway event."""
+    raw = event.get("body") or "{}"
+    if event.get("isBase64Encoded"):
+        raw = base64.b64decode(raw).decode("utf-8")
+    return json.loads(raw)
+
+
+def validate(data):
+    """Check the report. Returns (clean_report, error_message)."""
+    if not isinstance(data, dict):
+        return None, "Body must be a JSON object"
+
+    report_id = data.get("reportId")
+    road_id = data.get("roadId")
+    report_type = data.get("type")
+    description = data.get("description", "")
+    created_at = data.get("createdAt")
+
+    if not isinstance(report_id, str) or not ID_PATTERN.match(report_id):
+        return None, "reportId must be 1-64 letters, numbers, '-' or '_'"
+    if not isinstance(road_id, str) or not ID_PATTERN.match(road_id):
+        return None, "roadId must be 1-64 letters, numbers, '-' or '_'"
+    if report_type not in ALLOWED_TYPES:
+        return None, f"type must be one of: {', '.join(sorted(ALLOWED_TYPES))}"
+    if not isinstance(description, str) or len(description) > MAX_DESCRIPTION:
+        return None, f"description must be text, max {MAX_DESCRIPTION} characters"
+    if created_at is not None and (not isinstance(created_at, str) or len(created_at) > 40):
+        return None, "createdAt must be a short date-time string"
+
+    report = {
+        "reportId": report_id,
+        "roadId": road_id,
+        "type": report_type,
+        "description": description.strip(),
+        # Time the server received it (we don't fully trust the phone's clock).
+        "receivedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if created_at:
+        report["createdAt"] = created_at
+    return report, None
+
+
+def send_alert(report):
+    """Email the 'control room' about a new report. Never raises."""
+    if not TOPIC_ARN:
+        return False
+    label = TYPE_LABELS.get(report["type"], report["type"])
+    # Email subjects must be plain ASCII and under 100 characters. The road ID and
+    # type are already validated as ASCII; the user's description goes in the body only.
+    subject = f"FloodNav alert: road {report['roadId']} {label}"[:99]
+    lines = [
+        "A new citizen flood report was received.",
+        "",
+        f"Road ID:     {report['roadId']}",
+        f"Status:      {label}",
+        f"Received at: {report['receivedAt']} (UTC)",
+    ]
+    if report.get("description"):
+        lines.append(f"Details:     {report['description']}")
+    lines += ["", "Citizen reports are not verified."]
+    if APP_URL:
+        lines.append(f"Open the live map: {APP_URL}")
+    try:
+        sns.publish(TopicArn=TOPIC_ARN, Subject=subject, Message="\n".join(lines))
+        return True
+    except (ClientError, BotoCoreError) as e:
+        print(f"Alert not sent (report was still saved): {e}")  # CloudWatch logs
+        return False
+
+
+def lambda_handler(event, context):
+    # Browsers send an OPTIONS "pre-check" request before the real POST.
+    method = (
+        event.get("requestContext", {}).get("http", {}).get("method")  # HTTP API
+        or event.get("httpMethod")                                       # REST API
+    )
+    if method == "OPTIONS":
+        return respond(200, {})
+
+    try:
+        data = read_body(event)
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        return respond(400, {"ok": False, "error": "Body is not valid JSON"})
+
+    report, error = validate(data)
+    if error:
+        return respond(400, {"ok": False, "error": error})
+
+    try:
+        # Only save if this reportId doesn't exist yet.
+        # This stops duplicates when the phone re-sends after reconnecting.
+        table.put_item(
+            Item=report,
+            ConditionExpression="attribute_not_exists(reportId)",
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            # Already saved earlier. Treat as success so the phone clears it from its queue.
+            return respond(200, {"ok": True, "duplicate": True, "reportId": report["reportId"]})
+        print(f"DynamoDB error: {e}")  # shows up in CloudWatch logs
+        return respond(500, {"ok": False, "error": "Could not save report"})
+
+    # Only new reports trigger an alert; duplicates returned earlier.
+    send_alert(report)
+    return respond(201, {"ok": True, "duplicate": False, "reportId": report["reportId"]})
