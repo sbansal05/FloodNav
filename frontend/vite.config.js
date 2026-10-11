@@ -7,6 +7,9 @@ export default defineConfig({
     // lets the frontend import Person 2's routing code from the repo root (src/algorithms)
     fs: { allow: ['..'] },
   },
+  preview: {
+    allowedHosts: ['.trycloudflare.com'], // for phone testing through a Cloudflare tunnel
+  },
   plugins: [
     react(),
     VitePWA({

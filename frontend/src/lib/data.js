@@ -43,7 +43,7 @@ export function nearestNode(nodes, lat, lng) {
  * closes the physical road in both directions, so when a two-way edge is blocked
  * its opposite-direction twin is blocked too.
  */
-function expandBlocked(blockedIds, edgeById, pairIndex) {
+export function expandBlocked(blockedIds, edgeById, pairIndex) {
   const out = new Set(blockedIds)
   let added = 0
   for (const id of blockedIds) {
@@ -156,6 +156,8 @@ export async function loadData() {
     nodeById,
     edges,
     edgeById,
+    pairIndex,
+    validRoadIds: new Set(edges.map((e) => e.id)),
     drawEdges,
     camps: normalizeCamps(campsRaw, nodes, warnings),
     scenarios: normalizeScenarios(scenariosRaw, edgeById, pairIndex, warnings),

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { COMMUNITY_HOURS, COMMUNITY_STYLE, timeAgo } from '../lib/communityReports.js'
+import { COMMUNITY_HOURS, timeAgo } from '../lib/communityReports.js'
+import { STATUS_STYLE } from '../lib/roadStyle.js'
 
-/** Side-panel section for other people's road reports. */
-export default function CommunityPanel({ community, show, onShow, online }) {
-  // Re-render every 30 s so "updated X min ago" stays current.
+/** Side-panel section for citizen road reports (from GET /reports, cached for offline). */
+export default function CommunityPanel({ community, online, citizenCount, pendingCount, safeCount }) {
+  // Re-render every 30 s so "last updated X min ago" stays current.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000)
@@ -12,40 +13,38 @@ export default function CommunityPanel({ community, show, onShow, online }) {
 
   if (!community.enabled) return null
 
-  const counts = { flooded: 0, blocked: 0, safe: 0 }
-  for (const r of community.roads) counts[r.type]++
   const updated = community.fetchedAt ? timeAgo(community.fetchedAt, now) : null
-
   let status
   if (!online) {
-    status = updated ? `Offline: showing reports from ${updated}` : 'Offline: no saved reports yet'
+    status = updated ? `Offline. Reports last updated ${updated}` : 'Offline. No saved reports yet'
   } else if (community.error) {
     status = updated
-      ? `${community.error}. Showing reports from ${updated}`
+      ? `${community.error}. Reports last updated ${updated}`
       : `${community.error}. Will retry.`
   } else if (community.loading && !updated) {
-    status = 'Loading…'
+    status = 'Loading reports…'
   } else {
-    status = updated ? `Updated ${updated}` : 'Not loaded yet'
+    status = updated ? `Reports last updated ${updated}` : 'Reports not loaded yet'
   }
 
   return (
     <section className="panel" aria-labelledby="community-heading">
-      <h2 id="community-heading">Community reports</h2>
-      <label className="check-row">
-        <input type="checkbox" checked={show} onChange={(e) => onShow(e.target.checked)} />
-        Show on map ({community.roads.length} road{community.roads.length === 1 ? '' : 's'}, last{' '}
-        {COMMUNITY_HOURS} h)
-      </label>
+      <h2 id="community-heading">Citizen reports (last {COMMUNITY_HOURS} h)</h2>
       <ul className="legend">
-        {Object.entries(COMMUNITY_STYLE).map(([type, s]) => (
-          <li key={type}>
-            <span className="community-dot" style={{ background: s.color }}>
-              {s.symbol}
-            </span>
-            {s.label} <span className="muted">({counts[type]})</span>
-          </li>
-        ))}
+        <li>
+          <span className="swatch" style={dash(STATUS_STYLE.citizen)} />
+          Blocked by citizen reports <span className="muted">({citizenCount})</span>
+        </li>
+        <li>
+          <span className="swatch" style={dash(STATUS_STYLE.pending)} />
+          Your reports, pending sync <span className="muted">({pendingCount})</span>
+        </li>
+        <li>
+          <span className="community-dot" style={{ background: '#15803d' }}>
+            ✓
+          </span>
+          Reported safe <span className="muted">({safeCount})</span>
+        </li>
       </ul>
       <p className={`muted small ${!online || community.error ? 'stale' : ''}`} role="status">
         {status}
@@ -64,9 +63,16 @@ export default function CommunityPanel({ community, show, onShow, online }) {
         )}
       </p>
       <p className="muted small">
-        Unverified reports from app users. They are shown for awareness only and do not change the
-        recommended route.
+        The recommended route avoids roads that citizens report as flooded or blocked. Reports are
+        not verified. Tap an orange road for details.
       </p>
     </section>
   )
+}
+
+function dash({ color, dashArray }) {
+  const [on, off] = dashArray.split(' ').map(Number)
+  return {
+    background: `repeating-linear-gradient(90deg, ${color} 0 ${on}px, transparent ${on}px ${on + off}px)`,
+  }
 }

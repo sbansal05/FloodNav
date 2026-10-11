@@ -28,8 +28,10 @@ export function useReports() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [pending, setPending] = useState([])
   const [syncing, setSyncing] = useState(false)
-  const [sentRoadIds, setSentRoadIds] = useState(() => new Set())
-  const [lastSavedAt, setLastSavedAt] = useState(null) 
+  // Reports the server confirmed this session: roadId -> { type, at }. Keeps the road blocked
+  // on this map until the next GET /reports includes it.
+  const [recentSent, setRecentSent] = useState({})
+  const [lastSavedAt, setLastSavedAt] = useState(null)
   const syncingRef = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -40,9 +42,10 @@ export function useReports() {
     }
   }, [])
 
-  const markSent = useCallback((roadId) => {
-    setSentRoadIds((prev) => new Set(prev).add(roadId))
-    setLastSavedAt(Date.now())
+  const markSent = useCallback((report) => {
+    const at = Date.now()
+    setRecentSent((prev) => ({ ...prev, [report.roadId]: { type: report.type, at } }))
+    setLastSavedAt(at)
   }, [])
 
   const syncNow = useCallback(async () => {
@@ -55,7 +58,7 @@ export function useReports() {
         try {
           await postReport(item)
           await removePending(item.reportId) // confirmed saved: drop from the queue
-          markSent(item.roadId)
+          markSent(item)
         } catch (err) {
           console.warn('[reports] sync failed for', item.reportId, err)
           if (err.status === undefined) {
@@ -114,7 +117,7 @@ export function useReports() {
       if (navigator.onLine && apiConfigured) {
         try {
           await postReport(report)
-          markSent(roadId)
+          markSent(report)
           return { status: 'sent' }
         } catch (err) {
           reason = err.status === undefined ? 'network' : 'server'
@@ -137,7 +140,7 @@ export function useReports() {
     [refresh],
   )
 
-  const reportedRoadIds = new Set([...sentRoadIds, ...pending.map((p) => p.roadId)])
+  const reportedRoadIds = new Set([...Object.keys(recentSent), ...pending.map((p) => p.roadId)])
 
   return {
     online,
@@ -148,6 +151,7 @@ export function useReports() {
     submit,
     discard,
     reportedRoadIds,
+    recentSent,
     lastSavedAt,
   }
 }

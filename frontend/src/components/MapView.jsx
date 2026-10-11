@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { lineStyle } from '../lib/roadStyle.js'
 import { COMMUNITY_STYLE, timeAgo } from '../lib/communityReports.js'
+
 // One shared canvas renderer: thousands of SVG roads would be far too slow.
-const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 8 })
+const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 10 }) // generous tap target on phones
 
 // divIcons avoid Leaflet's default marker image paths, which break under bundlers.
 const campIcon = (label, active) =>
@@ -23,14 +24,14 @@ const startIcon = L.divIcon({
 })
 
 /** All roads, created once and restyled when the scenario or selection changes. */
-function RoadsLayer({ edges, nodeById, statuses, selectedRoadId, mode, onSelectRoad }) {
+function RoadsLayer({ edges, nodeById, statuses, selectedRoadId, mode, onSelectRoad, describeRoad }) {
   const map = useMap()
   const layersRef = useRef(new Map())
   const appliedRef = useRef(new Map())
-  const live = useRef({ mode, onSelectRoad })
+  const live = useRef({ mode, onSelectRoad, describeRoad })
 
   useEffect(() => {
-    live.current = { mode, onSelectRoad }
+    live.current = { mode, onSelectRoad, describeRoad }
   })
 
   useEffect(() => {
@@ -46,8 +47,17 @@ function RoadsLayer({ edges, nodeById, statuses, selectedRoadId, mode, onSelectR
         ],
         { renderer: canvasRenderer, ...lineStyle('open', false) },
       )
-      line.on('click', () => {
-        if (live.current.mode === 'road') live.current.onSelectRoad(e.id)
+      line.on('click', (ev) => {
+        const { mode: m, onSelectRoad: select, describeRoad: describe } = live.current
+        if (m === 'road') select(e.id)
+        const text = describe?.(e.id)
+        if (!text) return
+        // Tapping a flooded / reported road shows its label and must not move the start point.
+        L.DomEvent.stopPropagation(ev)
+        const el = document.createElement('div')
+        el.className = 'road-popup'
+        el.textContent = text
+        L.popup({ closeButton: true, autoPan: false }).setLatLng(ev.latlng).setContent(el).openOn(map)
       })
       line.addTo(group)
       layers.set(e.id, line)
@@ -73,7 +83,8 @@ function RoadsLayer({ edges, nodeById, statuses, selectedRoadId, mode, onSelectR
       if (applied.get(e.id) === key) continue
       line.setStyle(lineStyle(status, selected))
       applied.set(e.id, key)
-      if (selected) line.bringToFront()
+      // Draw flooded / reported roads on top: they stay visible and win taps at busy junctions.
+      if (selected || status !== 'open') line.bringToFront()
     }
   }, [edges, statuses, selectedRoadId])
 
@@ -134,7 +145,7 @@ const communityIcon = (type) =>
     iconAnchor: [10, 10],
   })
 
-/** Other people's (unverified) road reports, as a marker at the middle of each reported road. */
+/** Citizen "safe" reports, as a tappable marker at the middle of each road. */
 function CommunityLayer({ roads, edgeById, nodeById }) {
   return roads.map((r) => {
     const e = edgeById.get(r.roadId)
@@ -147,10 +158,10 @@ function CommunityLayer({ roads, edgeById, nodeById }) {
         icon={communityIcon(r.type)}
         zIndexOffset={300}
       >
-        <Tooltip direction="top" offset={[0, -8]}>
-          {COMMUNITY_STYLE[r.type].label} · road {r.roadId} · {timeAgo(r.lastReportedAt)}
-          {r.reportCount > 1 ? ` · ${r.reportCount} reports` : ''} · unverified
-        </Tooltip>
+        <Popup>
+          {COMMUNITY_STYLE[r.type].label} by citizens · road {r.roadId} · {timeAgo(r.lastReportedAt)}
+          {r.reportCount > 1 ? ` · ${r.reportCount} reports` : ''} · Not verified
+        </Popup>
       </Marker>
     )
   })
@@ -193,6 +204,7 @@ export default function MapView({
   onSelectRoad,
   reportedRoadIds,
   communityRoads = [],
+  describeRoad,
   fit,
 }) {
   const start = nodeById.get(startId)
@@ -221,15 +233,18 @@ export default function MapView({
         selectedRoadId={selectedRoadId}
         mode={mode}
         onSelectRoad={onSelectRoad}
+        describeRoad={describeRoad}
       />
       <RouteLayer route={route} nodeById={nodeById} />
       <CommunityLayer roads={communityRoads} edgeById={edgeById} nodeById={nodeById} />
+
       {camps.map((c, i) => (
         <Marker
           key={c.id}
           position={[c.lat, c.lng]}
           icon={campIcon(`Camp ${i + 1}`, route.camp?.id === c.id)}
-          zIndexOffset={route.camp?.id === c.id ? 900 : 500}        >
+          zIndexOffset={route.camp?.id === c.id ? 900 : 500}
+        >
           <Tooltip direction="top" offset={[0, -12]}>
             {c.name}
             {c.capacity ? ` · capacity ${c.capacity}` : ''}

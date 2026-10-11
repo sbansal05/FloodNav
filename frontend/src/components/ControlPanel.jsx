@@ -1,13 +1,15 @@
 import { STATUS_STYLE } from '../lib/roadStyle.js'
 import { formatDistance } from '../lib/routing.js'
 
-function Swatch({ color, dashed }) {
+function Swatch({ color, dashArray }) {
+  // Mirror the map's dash pattern (e.g. "10 7") so the legend matches the roads.
+  const [on, off] = (dashArray ?? '').split(' ').map(Number)
   return (
     <span
       className="swatch"
       style={{
-        background: dashed
-          ? `repeating-linear-gradient(90deg, ${color} 0 6px, transparent 6px 10px)`
+        background: on
+          ? `repeating-linear-gradient(90deg, ${color} 0 ${on}px, transparent ${on}px ${on + off}px)`
           : color,
       }}
     />
@@ -60,7 +62,7 @@ export default function ControlPanel({
   warnings,
 }) {
   const scenario = scenarios[level]
-  const counts = { open: 0, atrisk: 0, blocked: 0 }
+  const counts = { open: 0, atrisk: 0, blocked: 0, citizen: 0, pending: 0 }
   for (const e of drawEdges) counts[statuses.get(e.id) ?? 'open']++
 
   return (
@@ -88,7 +90,9 @@ export default function ControlPanel({
       </div>
       {scenario.description && <p className="muted small">{scenario.description}</p>}
       <p className="muted small">
-        {counts.blocked} of {drawEdges.length} roads blocked (simulated)
+        {counts.blocked} of {drawEdges.length} roads flooded (simulated)
+        {counts.citizen + counts.pending > 0 &&
+          ` · ${counts.citizen + counts.pending} more blocked by citizen reports`}
       </p>
 
       <h2>Recommended route</h2>
@@ -120,7 +124,7 @@ export default function ControlPanel({
       <ul className="legend">
         {Object.entries(STATUS_STYLE).map(([key, s]) => (
           <li key={key}>
-            <Swatch color={s.color} dashed={!!s.dashArray} />
+            <Swatch color={s.color} dashArray={s.dashArray} />
             {s.label} <span className="muted">({counts[key]})</span>
           </li>
         ))}

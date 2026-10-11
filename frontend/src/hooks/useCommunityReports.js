@@ -8,7 +8,7 @@ import {
 } from '../lib/communityReports.js'
 
 const CACHE_KEY = 'communityReports'
-const REFRESH_EVERY_MS = 45_000
+const REFRESH_EVERY_MS = 60_000
 
 
 export function useCommunityReports(edgeById) {
