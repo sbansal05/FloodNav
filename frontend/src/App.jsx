@@ -6,6 +6,8 @@ import StatusBar from './components/StatusBar.jsx'
 import CommunityPanel from './components/CommunityPanel.jsx'
 import { classifyRoads, loadData, nearestNode } from './lib/data.js'
 import { computeBestRoute, pickDefaultStart } from './lib/routing.js'
+import { buildCitizenRoads, combineBlocked } from './lib/citizenBlocking.js'
+import { timeAgo } from './lib/communityReports.js'
 import { useReports } from './hooks/useReports.js'
 import { useCommunityReports } from './hooks/useCommunityReports.js'
 
@@ -17,7 +19,6 @@ export default function App() {
   const [mode, setMode] = useState('start') // what a map click does: 'start' | 'road'
   const [selectedRoadId, setSelectedRoadId] = useState('')
   const [fit, setFit] = useState(null)
-  const [showCommunity, setShowCommunity] = useState(true)
   const reports = useReports()
 
   useEffect(() => {
@@ -46,21 +47,70 @@ export default function App() {
 
   const scenario = data?.scenarios[level]
 
-  const statuses = useMemo(
-    () => (data ? classifyRoads(data.edges, data.scenarios, level) : new Map()),
-    [data, level],
+  // Citizen reports (server data + reports just sent + our own unsynced reports), in the API's shape.
+  const citizenRoads = useMemo(
+    () =>
+      buildCitizenRoads(community.roads, community.fetchedAt, reports.recentSent, reports.pending),
+    [community.roads, community.fetchedAt, reports.recentSent, reports.pending],
   )
+
+  // Scenario closures + citizen-blocked roads (both directions) -> one array for Dijkstra.
+  const blocking = useMemo(
+    () => (data ? combineBlocked(scenario.blocked, citizenRoads, data) : null),
+    [data, scenario, citizenRoads],
+  )
+
+  const statuses = useMemo(() => {
+    if (!data) return new Map()
+    const s = classifyRoads(data.edges, data.scenarios, level)
+    // Scenario flooding (red) stays on top; otherwise show the citizen / pending block (orange).
+    for (const id of blocking.citizenIds) if (s.get(id) !== 'blocked') s.set(id, 'citizen')
+    for (const id of blocking.pendingIds) if (s.get(id) !== 'blocked') s.set(id, 'pending')
+    return s
+  }, [data, level, blocking])
 
   // Dijkstra runs in the browser, so this works offline.
   const route = useMemo(() => {
     if (!data || !startId) return null
     return computeBestRoute(
       { nodes: data.nodes, edges: data.edges },
-      scenario.blocked,
+      [...blocking.blocked],
       startId,
       data.camps,
     )
-  }, [data, scenario, startId])
+  }, [data, blocking, startId])
+
+  // Text shown when a road is tapped (null = no label for this road).
+  const describeRoad = useCallback(
+    (edgeId) => {
+      const info = blocking?.infoByEdge.get(edgeId)
+      const scenarioFlooded = statuses.get(edgeId) === 'blocked'
+      if (info?.pending) return `Your report: ${info.latestType} · Pending sync`
+      if (info) {
+        const count = info.reportCount || 1
+        const label = `Reported ${info.latestType} by citizens · ${timeAgo(info.lastReportedAt)} · ${count} report${count === 1 ? '' : 's'} · Not verified`
+        return scenarioFlooded ? `Flooded in this simulated scenario. Also: ${label}` : label
+      }
+      if (scenarioFlooded) return `Flooded in this simulated scenario (road ${edgeId})`
+      return null
+    },
+    [blocking, statuses],
+  )
+
+  const counts = useMemo(() => {
+    const c = { citizen: 0, pending: 0 }
+    for (const e of data?.drawEdges ?? []) {
+      const st = statuses.get(e.id)
+      if (st === 'citizen' || st === 'pending') c[st]++
+    }
+    return c
+  }, [data, statuses])
+
+  // "Safe" reports don't block anything; they are shown as markers for awareness.
+  const safeReports = useMemo(
+    () => community.roads.filter((r) => r.type === 'safe'),
+    [community.roads],
+  )
 
   const pickStart = useCallback(
     (lat, lng) => {
@@ -119,7 +169,8 @@ export default function App() {
               selectedRoadId={selectedRoadId}
               onSelectRoad={setSelectedRoadId}
               reportedRoadIds={reports.reportedRoadIds}
-              communityRoads={showCommunity ? community.roads : []}
+              communityRoads={safeReports}
+              describeRoad={describeRoad}
               fit={fit}
             />
           </div>
@@ -138,9 +189,10 @@ export default function App() {
             />
             <CommunityPanel
               community={community}
-              show={showCommunity}
-              onShow={setShowCommunity}
               online={reports.online}
+              citizenCount={counts.citizen}
+              pendingCount={counts.pending}
+              safeCount={safeReports.length}
             />
             <ReportForm
               edgeById={data.edgeById}
