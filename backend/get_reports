@@ -1,0 +1,127 @@
+"""
+getFloodReports - returns recent flood reports so every phone can show them on the map.
+
+Flow: API Gateway (GET /reports) -> this Lambda -> DynamoDB table (FloodReports)
+
+Optional query parameter:
+  ?hours=24   only return reports from the last N hours (default 24, max 168 = 7 days)
+
+Response (JSON):
+{
+  "ok": true,
+  "generatedAt": "2026-10-10T10:00:00+00:00",
+  "count": 3,
+  "roads": {                       # one entry per road: easy for the map to colour
+    "AB": {"latestType": "flooded", "lastReportedAt": "...", "reportCount": 2}
+  },
+  "reports": [ ...newest first... ]
+}
+"""
+
+import json
+import os
+from datetime import datetime, timedelta, timezone
+
+import boto3
+from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
+
+TABLE_NAME = os.environ.get("TABLE_NAME", "FloodReports")
+table = boto3.resource("dynamodb").Table(TABLE_NAME)
+
+DEFAULT_HOURS = 24
+MAX_HOURS = 168          # 7 days
+MAX_REPORTS = 500        # safety cap so the response stays small
+
+# Keep the same CORS setup as the save Lambda.
+CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,OPTIONS",
+    # Let browsers reuse the answer for 15 seconds, so many phones refreshing
+    # at once don't all hit the database.
+    "Cache-Control": "max-age=15",
+}
+
+# Only send the fields the app needs.
+FIELDS = ["reportId", "roadId", "#t", "description", "createdAt", "receivedAt"]
+
+
+def respond(status_code, body):
+    return {"statusCode": status_code, "headers": CORS_HEADERS, "body": json.dumps(body)}
+
+
+def read_hours(event):
+    """Read ?hours=N safely. Falls back to the default for anything odd."""
+    params = event.get("queryStringParameters") or {}
+    try:
+        hours = int(params.get("hours", DEFAULT_HOURS))
+    except (TypeError, ValueError):
+        return DEFAULT_HOURS
+    return max(1, min(hours, MAX_HOURS))
+
+
+def scan_recent(cutoff_iso):
+    """Read all reports newer than the cutoff. Handles DynamoDB's 1 MB pages."""
+    items = []
+    kwargs = {
+        "FilterExpression": Attr("receivedAt").gte(cutoff_iso),
+        "ProjectionExpression": ", ".join(FIELDS),
+        "ExpressionAttributeNames": {"#t": "type"},  # "type" is a reserved word
+    }
+    while True:
+        page = table.scan(**kwargs)
+        items.extend(page.get("Items", []))
+        last_key = page.get("LastEvaluatedKey")
+        if not last_key or len(items) >= MAX_REPORTS * 4:
+            break
+        kwargs["ExclusiveStartKey"] = last_key
+    return items
+
+
+def summarise_by_road(reports):
+    """For each road: the latest report type, when it was reported, how many reports."""
+    roads = {}
+    for r in reports:  # reports are already sorted newest first
+        road = roads.get(r["roadId"])
+        if road is None:
+            roads[r["roadId"]] = {
+                "latestType": r.get("type"),
+                "lastReportedAt": r.get("receivedAt"),
+                "reportCount": 1,
+            }
+        else:
+            road["reportCount"] += 1
+    return roads
+
+
+def lambda_handler(event, context):
+    method = (
+        event.get("requestContext", {}).get("http", {}).get("method")  # HTTP API
+        or event.get("httpMethod")                                       # REST API
+    )
+    if method == "OPTIONS":
+        return respond(200, {})
+
+    hours = read_hours(event)
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=hours)).isoformat()
+
+    try:
+        reports = scan_recent(cutoff)
+    except ClientError as e:
+        print(f"DynamoDB error: {e}")  # shows up in CloudWatch logs
+        return respond(500, {"ok": False, "error": "Could not load reports"})
+
+    reports.sort(key=lambda r: r.get("receivedAt", ""), reverse=True)
+    reports = reports[:MAX_REPORTS]
+
+    return respond(200, {
+        "ok": True,
+        "generatedAt": now.isoformat(),
+        "hours": hours,
+        "count": len(reports),
+        "roads": summarise_by_road(reports),
+        "reports": reports,
+    })
