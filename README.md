@@ -274,7 +274,7 @@ Each Lambda only has the one permission it needs. Removing `TOPIC_ARN` turns ema
 
 | Role | Member |
 |---|---|
-| Map & road data | `<Anisha>` |
-| Routing algorithms | `<Shreya Tripathi>` |
-| Frontend & offline app | `<Siddhi Bansal>` |
-| AWS backend & integration | `<Niteshika Jain>` |
+| Map & road data | `Anisha` |
+| Routing algorithms | `Shreya Tripathi` |
+| Frontend & offline app | `Siddhi Bansal` |
+| AWS backend & integration | `Niteshika Jain` |
