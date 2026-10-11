@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from '
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { lineStyle } from '../lib/roadStyle.js'
-
+import { COMMUNITY_STYLE, timeAgo } from '../lib/communityReports.js'
 // One shared canvas renderer: thousands of SVG roads would be far too slow.
 const canvasRenderer = L.canvas({ padding: 0.5, tolerance: 8 })
 
@@ -126,6 +126,36 @@ function ReportedLayer({ reportedRoadIds, edgeById, nodeById }) {
   return null
 }
 
+const communityIcon = (type) =>
+  L.divIcon({
+    className: '',
+    html: `<div class="community-dot on-map" style="background:${COMMUNITY_STYLE[type].color}">${COMMUNITY_STYLE[type].symbol}</div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  })
+
+/** Other people's (unverified) road reports, as a marker at the middle of each reported road. */
+function CommunityLayer({ roads, edgeById, nodeById }) {
+  return roads.map((r) => {
+    const e = edgeById.get(r.roadId)
+    const a = nodeById.get(e.from)
+    const b = nodeById.get(e.to)
+    return (
+      <Marker
+        key={r.roadId}
+        position={[(a.lat + b.lat) / 2, (a.lng + b.lng) / 2]}
+        icon={communityIcon(r.type)}
+        zIndexOffset={300}
+      >
+        <Tooltip direction="top" offset={[0, -8]}>
+          {COMMUNITY_STYLE[r.type].label} · road {r.roadId} · {timeAgo(r.lastReportedAt)}
+          {r.reportCount > 1 ? ` · ${r.reportCount} reports` : ''} · unverified
+        </Tooltip>
+      </Marker>
+    )
+  })
+}
+
 function MapClick({ mode, onPick }) {
   useMapEvents({
     click(e) {
@@ -162,6 +192,7 @@ export default function MapView({
   selectedRoadId,
   onSelectRoad,
   reportedRoadIds,
+  communityRoads = [],
   fit,
 }) {
   const start = nodeById.get(startId)
@@ -192,7 +223,7 @@ export default function MapView({
         onSelectRoad={onSelectRoad}
       />
       <RouteLayer route={route} nodeById={nodeById} />
-
+      <CommunityLayer roads={communityRoads} edgeById={edgeById} nodeById={nodeById} />
       {camps.map((c, i) => (
         <Marker
           key={c.id}

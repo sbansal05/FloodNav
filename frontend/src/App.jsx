@@ -3,9 +3,11 @@ import MapView from './components/MapView.jsx'
 import ControlPanel from './components/ControlPanel.jsx'
 import ReportForm from './components/ReportForm.jsx'
 import StatusBar from './components/StatusBar.jsx'
+import CommunityPanel from './components/CommunityPanel.jsx'
 import { classifyRoads, loadData, nearestNode } from './lib/data.js'
 import { computeBestRoute, pickDefaultStart } from './lib/routing.js'
 import { useReports } from './hooks/useReports.js'
+import { useCommunityReports } from './hooks/useCommunityReports.js'
 
 export default function App() {
   const [data, setData] = useState(null)
@@ -15,6 +17,7 @@ export default function App() {
   const [mode, setMode] = useState('start') // what a map click does: 'start' | 'road'
   const [selectedRoadId, setSelectedRoadId] = useState('')
   const [fit, setFit] = useState(null)
+  const [showCommunity, setShowCommunity] = useState(true)
   const reports = useReports()
 
   useEffect(() => {
@@ -30,6 +33,16 @@ export default function App() {
       })
       .catch((e) => setError(e.message))
   }, [])
+
+  const community = useCommunityReports(data?.edgeById)
+  const refreshCommunity = community.refresh
+
+  // After the server confirms one of our reports, fetch the community view again so it appears.
+  useEffect(() => {
+    if (!reports.lastSavedAt) return
+    const t = setTimeout(refreshCommunity, 1000)
+    return () => clearTimeout(t)
+  }, [reports.lastSavedAt, refreshCommunity])
 
   const scenario = data?.scenarios[level]
 
@@ -75,7 +88,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Flood Relief Planner</h1>
+        <h1>FloodNav</h1>
         <StatusBar reports={reports} />
       </header>
       <p className="disclaimer" role="note">
@@ -106,6 +119,7 @@ export default function App() {
               selectedRoadId={selectedRoadId}
               onSelectRoad={setSelectedRoadId}
               reportedRoadIds={reports.reportedRoadIds}
+              communityRoads={showCommunity ? community.roads : []}
               fit={fit}
             />
           </div>
@@ -121,6 +135,12 @@ export default function App() {
               onMode={setMode}
               onZoomRoute={zoomToRoute}
               warnings={data.warnings}
+            />
+            <CommunityPanel
+              community={community}
+              show={showCommunity}
+              onShow={setShowCommunity}
+              online={reports.online}
             />
             <ReportForm
               edgeById={data.edgeById}

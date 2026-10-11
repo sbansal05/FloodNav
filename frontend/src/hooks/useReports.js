@@ -29,6 +29,7 @@ export function useReports() {
   const [pending, setPending] = useState([])
   const [syncing, setSyncing] = useState(false)
   const [sentRoadIds, setSentRoadIds] = useState(() => new Set())
+  const [lastSavedAt, setLastSavedAt] = useState(null) 
   const syncingRef = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -41,6 +42,7 @@ export function useReports() {
 
   const markSent = useCallback((roadId) => {
     setSentRoadIds((prev) => new Set(prev).add(roadId))
+    setLastSavedAt(Date.now())
   }, [])
 
   const syncNow = useCallback(async () => {
@@ -137,5 +139,15 @@ export function useReports() {
 
   const reportedRoadIds = new Set([...sentRoadIds, ...pending.map((p) => p.roadId)])
 
-  return { online, apiConfigured, pending, syncing, syncNow, submit, discard, reportedRoadIds }
+  return {
+    online,
+    apiConfigured,
+    pending,
+    syncing,
+    syncNow,
+    submit,
+    discard,
+    reportedRoadIds,
+    lastSavedAt,
+  }
 }

@@ -133,3 +133,9 @@ input[type='range'] { width: 100%; accent-color: var(--accent); height: 28px; }
 .road-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .road-row input { font: inherit; font-weight: 400; padding: 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
 .small-btn.dark { background: var(--navy); color: #fff; padding: 6px 12px; }
+
+/* community (other users') road reports */
+.community-dot { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; line-height: 1; flex: none; }
+.community-dot.on-map { width: 20px; height: 20px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; margin-bottom: 8px; }
+.stale { color: #9a6700; font-weight: 600; }

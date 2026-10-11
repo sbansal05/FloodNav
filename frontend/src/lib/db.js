@@ -1,15 +1,20 @@
-// IndexedDB storage for road reports that are not confirmed by the server yet (offline queue).
+// IndexedDB storage:
+//  - pendingReports: road reports not confirmed by the server yet (offline queue)
+//  - cache: last known server data (e.g. community road reports) for offline use
 import { openDB } from 'idb'
 
 const DB_NAME = 'flood-relief'
 const STORE = 'pendingReports'
+const CACHE = 'cache'
 
 let dbPromise
 function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, 1, {
+    dbPromise = openDB(DB_NAME, 2, {
       upgrade(db) {
-        db.createObjectStore(STORE, { keyPath: 'reportId' })
+        // Version 1 created pendingReports; version 2 adds cache. Existing data is kept.
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'reportId' })
+        if (!db.objectStoreNames.contains(CACHE)) db.createObjectStore(CACHE)
       },
     })
   }
@@ -37,4 +42,14 @@ export async function updatePending(item) {
 export async function removePending(reportId) {
   const db = await getDb()
   await db.delete(STORE, reportId)
+}
+
+export async function getCached(key) {
+  const db = await getDb()
+  return db.get(CACHE, key)
+}
+
+export async function setCached(key, value) {
+  const db = await getDb()
+  await db.put(CACHE, value, key)
 }
